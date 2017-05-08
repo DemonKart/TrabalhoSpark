@@ -33,37 +33,75 @@ SparkContext.setSystemProperty('spark.driver.memory', '5g')
 
 sc = SparkContext("local", "App Name")
 
-print "----\n\n\n"
+print "----\n"
 spark = SQLContext(sc)
 
-print "Lendo dados\n"
+print "Reading data\n"
 
 students = spark.read.format("com.databricks.spark.csv").option("header",'true').option("delimiter", '|').load("dados/10kstudents.csv", inferSchema=True)
 courses = spark.read.format("com.databricks.spark.csv").option("header",'true').option("delimiter", '|').load("dados/course_no_header.csv", inferSchema=True)
 institutions = spark.read.format("com.databricks.spark.csv").option("header",'true').option("delimiter", '|').load("dados/institution_no_header.csv", inferSchema=True)
 
-students = students.select("CO_CURSO", "CO_IES", "DS_SEXO_ALUNO", "NU_IDADE_ALUNO", "DS_COR_RACA_ALUNO", "CO_TIPO_ESCOLA_ENS_MEDIO")
+students = students.select("CO_CURSO", "CO_IES", "IN_SEXO_ALUNO", "NU_IDADE_ALUNO", "CO_COR_RACA_ALUNO", "CO_TIPO_ESCOLA_ENS_MEDIO")
 courses = courses.select("CO_CURSO", "NO_CURSO")
-institutions = institutions.select("CO_IES", "SGL_UF_IES")
+institutions = institutions.select("CO_IES", "CO_UF_IES")
+
+course_names = courses.select("NO_CURSO").distinct().collect()
+
+print "Resulting table created\n---\n"
+
+print "Numbering course names\n"
+
+names = []
+for course_name in course_names:
+	names.append(course_name)
+
+courses2 = courses.collect()
+courses = []
+for course in courses2:
+	courses.append((course[0],names.index(Row(NO_CURSO=course[1]))))
+
+courses = spark.createDataFrame(courses, ["CO_CURSO", "NO_CURSO"])
+
+print "Applying ML\n"
 
 sc = students.join(courses, "CO_CURSO")
 sci = sc.join(institutions, "CO_IES")
 
-display(sci.take(10))
+# CO_UF_IES
+# NO_CURSO
+# IN_SEXO_ALUNO
+# NU_IDADE_ALUNO
+# CO_COR_RACA_ALUNO
+# CO_TIPO_ESCOLA_ENS_MEDIO
 
-# SELECT  i.SGL_UF_IES, 
+# features = ['type', 'responsable', 'stages']
+# assembler = VectorAssembler(inputCols=features, outputCol="features")
+# dataFinal = assembler.transform(completeData)
+
+# dt = DecisionTreeClassifier(labelCol='uf_code', featuresCol='features', maxDepth=5)
+# (treinamento, teste) = dataFinal.randomSplit([0.8, 0.2])
+# model = dt.fit(treinamento)
+# predictions = model.transform(teste)
+# print model.toDebugString
+# total = predictions.count()
+# missed = predictions.where("uf_code != prediction").count()
+
+# resultados.append({"id": "Unidade Federativa", "TOTAL": total, "MISSED": missed})
+
+# SELECT  i.CO_UF_IES, 
 #         c.NO_CURSO,
-#         s.DS_SEXO_ALUNO,
+#         s.IN_SEXO_ALUNO,
 #         s.NU_IDADE_ALUNO,
-#         s.DS_COR_RACA_ALUNO,
+#         s.CO_COR_RACA_ALUNO,
 #         s.CO_TIPO_ESCOLA_ENS_MEDIO
 # FROM students s 
 #     JOIN courses c on c.CO_CURSO = s.CO_CURSO
 #     JOIN institutions i on i.CO_IES = s.CO_IES
 
 # ALUNO idade                                   NU_IDADE_ALUNO
-# ALUNO sexo                                            DS_SEXO_ALUNO
-# IES   estado                                          SGL_UF_IES
+# ALUNO sexo                                            IN_SEXO_ALUNO
+# IES   estado                                          CO_UF_IES
 # ALUNO escola publica x privada        CO_TIPO_ESCOLA_ENS_MEDIO
-# ALUNO raça                                            DS_COR_RACA_ALUNO
+# ALUNO raça                                            CO_COR_RACA_ALUNO
 # CURSO nome                                            NO_CURSO
